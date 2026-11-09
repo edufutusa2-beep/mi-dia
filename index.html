@@ -805,7 +805,15 @@ function go(t){
   try{history.replaceState(null,"","#"+t)}catch(e){}
   window.scrollTo(0,0); document.body.classList.remove("chrome-hidden"); lastY=0;
 }
-document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>{haptic();go(b.dataset.tab)}));
+function resetToToday(t){
+  const now=new Date(), today=ymd(now);
+  if(t==="hoy"){calHoy=new Date(now.getFullYear(),now.getMonth(),1);calSelHoy=today;renderHoy()}
+  else if(t==="agenda"){weekStart=startOfWeek(now);selDay=today;calAg=new Date(now.getFullYear(),now.getMonth(),1);renderAgenda()}
+  else if(t==="finanzas"){month=new Date(now.getFullYear(),now.getMonth(),1);renderFin()}
+  try{window.scrollTo({top:0,behavior:reduceMotion()?"auto":"smooth"})}catch(e){window.scrollTo(0,0)}
+  document.body.classList.remove("chrome-hidden");
+}
+document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>{haptic();if(b.dataset.tab===tab)resetToToday(tab);else go(b.dataset.tab)}));
 document.addEventListener("click",e=>{
   const cs=e.target.closest("[data-cal-shift]"); if(cs){const n=+cs.dataset.calShift;if(cs.dataset.ctx==="hoy"){calHoy=new Date(calHoy.getFullYear(),calHoy.getMonth()+n,1);renderHoy()}else{calAg=new Date(calAg.getFullYear(),calAg.getMonth()+n,1);renderAgenda()}return}
   const cd=e.target.closest("[data-cal-day]"); if(cd){const ds=cd.dataset.calDay,d=parseYmd(ds);haptic();
