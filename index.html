@@ -204,6 +204,9 @@ body.chrome-hidden .topbar{transform:translateY(-100%)}
 .day:active{transform:scale(.93)}
 .ev{display:grid;grid-template-columns:56px 1fr auto;gap:10px;align-items:start;padding:12px 0 12px 12px;border-top:1px solid var(--line);position:relative}
 .ev:first-child{border-top:0;padding-top:2px}
+.ev.allday{grid-template-columns:1fr auto}
+.f input[type=date]{-webkit-appearance:none;appearance:none;min-height:48px;text-align:left;display:block}
+.f input[type=date]::-webkit-date-and-time-value{text-align:left}
 .ev::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:4px;background:var(--evc,var(--accent))}
 .ev:first-child::before{top:2px}
 .ev .t{font-family:var(--display);font-weight:800;font-size:15px}
@@ -419,15 +422,12 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
     <div class="grab-zone"><div class="grab"></div>
       <div class="row between"><h2 id="evTitle">Nuevo evento</h2><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></div></div>
     <label class="f" for="evName">Qué tienes que hacer<input id="evName" required placeholder="Ej.: Dentista, llamar a Marta…" maxlength="120" autocomplete="off"></label>
-    <div class="two">
-      <label class="f" for="evDate">Fecha<input type="date" id="evDate" required></label>
-      <label class="f" for="evTime">Hora<input type="time" id="evTime"></label>
-    </div>
+    <label class="f" for="evDate">Fecha · todo el día<input type="date" id="evDate" required></label>
     <div class="two">
       <label class="f" for="evCat">Categoría<select id="evCat"><option>Personal</option><option>Trabajo</option><option>Salud</option><option>Recados</option><option>Familia</option></select></label>
       <label class="f" for="evRep">Repetir<select id="evRep"><option value="none">No se repite</option><option value="daily">Cada día</option><option value="weekdays">Lunes a viernes</option><option value="weekly">Cada semana</option><option value="monthly">Cada mes</option></select></label>
     </div>
-    <label class="f" for="evRem">Aviso<select id="evRem"><option value="-1">Sin aviso</option><option value="0">A la hora</option><option value="5">5 min antes</option><option value="15" selected>15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="1440">1 día antes</option></select></label>
+    <label class="f" for="evRem">Aviso (a las 9:00)<select id="evRem"><option value="-1">Sin aviso</option><option value="0" selected>El mismo día</option><option value="1">1 día antes</option><option value="2">2 días antes</option><option value="7">1 semana antes</option></select></label>
     <label class="f" for="evNote">Notas<textarea id="evNote" rows="2" maxlength="500"></textarea></label>
     <div class="err" id="evErr"></div>
     <div class="row between">
@@ -590,16 +590,20 @@ function eventsOn(ds){
 }
 const isDone=(ev,ds)=>!!(ev.done&&ev.done[ds]);
 const REP={none:"",daily:"Cada día",weekdays:"Lun–vie",weekly:"Cada semana",monthly:"Cada mes"};
+function remLabel(ev){
+  if(!ev.time){const d=ev.remindDay;return d===0?"El mismo día":d===1?"1 día antes":d===7?"1 semana antes":d>1?`${d} días antes`:""}
+  return ev.remind>=0?(REM[String(ev.remind)]||""):"";
+}
 const REM={"0":"A la hora","5":"5 min antes","15":"15 min antes","30":"30 min antes","60":"1 h antes","1440":"1 día antes"};
 let justDone="";
 function evRow(ev,ds,showDate){
   const done=isDone(ev,ds);
   const c=EVC[ev.cat]||EVC.Personal;
   const dateLbl=showDate?parseYmd(ds).toLocaleDateString("es-ES",{weekday:"short",day:"numeric",month:"short"}):"";
-  return `<div class="ev ${done?"done":""} ${justDone===ev.id+"@"+ds?"just-done":""}" style="--evc:${c}">
-    <div class="t num">${ev.time?esc(ev.time):'<span class="sub" style="font-family:var(--body);font-size:12px;font-weight:600">Todo<br>el día</span>'}</div>
+  return `<div class="ev ${ev.time?"":"allday"} ${done?"done":""} ${justDone===ev.id+"@"+ds?"just-done":""}" style="--evc:${c}">
+    ${ev.time?`<div class="t num">${esc(ev.time)}</div>`:""}
     <div style="min-width:0"><button type="button" class="plain tt" data-edit-ev="${esc(ev.id)}">${esc(ev.title)}</button>
-      <div class="meta"><span class="chip">${esc(ev.cat||"Personal")}</span>${dateLbl?`<span>${esc(dateLbl)}</span>`:""}${REP[ev.repeat]?`<span>↻ ${REP[ev.repeat]}</span>`:""}${ev.remind>=0&&ev.time?`<span>🔔 ${REM[String(ev.remind)]||""}</span>`:""}</div>
+      <div class="meta"><span class="chip">${esc(ev.cat||"Personal")}</span>${dateLbl?`<span>${esc(dateLbl)}</span>`:""}${REP[ev.repeat]?`<span>↻ ${REP[ev.repeat]}</span>`:""}${remLabel(ev)?`<span>🔔 ${remLabel(ev)}</span>`:""}</div>
       ${ev.note?`<div class="sub" style="margin-top:4px;overflow-wrap:anywhere">${esc(ev.note)}</div>`:""}
     </div>
     <button type="button" class="check" data-toggle="${esc(ev.id)}" data-ds="${ds}" aria-label="${done?"Marcar como pendiente":"Marcar como hecho"}">✓</button>
@@ -937,10 +941,9 @@ function openEv(id,preset){
   $("#evTitle").textContent=ev?"Editar evento":"Nuevo evento";
   $("#evName").value=ev?ev.title:"";
   $("#evDate").value=ev?ev.date:(preset||(tab==="agenda"?selDay:tab==="hoy"?calSelHoy:ymd(new Date())));
-  $("#evTime").value=ev?ev.time||"":"";
   $("#evCat").value=ev?ev.cat||"Personal":"Personal";
   $("#evRep").value=ev?ev.repeat||"none":"none";
-  $("#evRem").value=ev?String(ev.remind??-1):"15";
+  $("#evRem").value=ev?String(ev.remindDay??(ev.time&&ev.remind>=0?(ev.remind>=1440?1:0):-1)):"0";
   $("#evNote").value=ev?ev.note||"":"";
   $("#evErr").textContent="";
   $("#evDel").classList.toggle("hide",!ev); resetDel($("#evDel"));
@@ -953,12 +956,12 @@ $("#evForm").addEventListener("submit",e=>{
   if(!title){$("#evErr").textContent="Escribe qué tienes que hacer.";return}
   if(!date){$("#evErr").textContent="Elige una fecha.";return}
   saving=true; setTimeout(()=>saving=false,500);
-  const remind=+$("#evRem").value, time=$("#evTime").value;
+  const remindDay=+$("#evRem").value;
   const prev=editEv?state.items.get(editEv):null;
-  const obj={kind:"event",title,date,time,cat:$("#evCat").value,repeat:$("#evRep").value,remind,note:$("#evNote").value.trim(),done:prev?prev.done||{}:{},created:prev?prev.created||Date.now():Date.now()};
+  const obj={kind:"event",title,date,time:"",cat:$("#evCat").value,repeat:$("#evRep").value,remind:-1,remindDay,note:$("#evNote").value.trim(),done:prev?prev.done||{}:{},created:prev?prev.created||Date.now():Date.now()};
   put(editEv||("ev_"+uid()),obj);
   closeSheets(); haptic();
-  if(remind>=0&&time&&remind>=0&&notifState()!=="granted"&&!audioUnlocked) toast("Activa los avisos","Pulsa «Activar avisos» arriba para recibirlos.");
+  if(remindDay>=0&&notifState()!=="granted"&&!audioUnlocked) toast("Activa los avisos","Pulsa «Activar avisos» arriba para recibirlos.");
   selDay=date; weekStart=startOfWeek(parseYmd(date)); if(tab==="hoy"){calSelHoy=date;const dd=parseYmd(date);calHoy=new Date(dd.getFullYear(),dd.getMonth(),1)} scheduleRender();
 });
 
@@ -1046,10 +1049,26 @@ function markFired(k){firedMem[k]=Date.now();try{const cut=Date.now()-3*864e5;Ob
 function checkReminders(){
   if(!state.ready) return;
   const now=new Date();
-  for(let off=0;off<=1;off++){
+  for(let off=0;off<=7;off++){
     const ds=ymd(addDays(now,off));
     eventsOn(ds).forEach(ev=>{
-      if(!(ev.remind>=0)||!ev.time||isDone(ev,ds)) return;
+      if(isDone(ev,ds)) return;
+      if(!ev.time){
+        // evento de todo el día: aviso a las 9:00 del día elegido
+        const rd=ev.remindDay; if(!(rd>=0)||rd!==off&&!(off<rd)) return;
+        const fire=parseYmd(ds); fire.setDate(fire.getDate()-rd); fire.setHours(9,0,0,0);
+        const endOfEv=parseYmd(ds); endOfEv.setHours(23,59,0,0);
+        const key=ev.id+"@"+ds+"#d";
+        if(now>=fire&&now<=endOfEv&&!firedMem[key]){
+          markFired(key);
+          const when=off===0?"Hoy":off===1?"Mañana":`En ${off} días · ${parseYmd(ds).toLocaleDateString("es-ES",{weekday:"long",day:"numeric"})}`;
+          const body=`${when} · ${ev.cat||"Personal"}`;
+          if(notifState()==="granted"){try{new Notification(ev.title,{body,tag:key})}catch(e){}}
+          toast("🔔 "+ev.title,body,true); beep(); haptic();
+        }
+        return;
+      }
+      if(!(ev.remind>=0)) return;
       const [hh,mm]=ev.time.split(":").map(Number);
       const at=parseYmd(ds); at.setHours(hh,mm,0,0);
       const fire=at.getTime()-ev.remind*60000;
