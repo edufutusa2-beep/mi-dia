@@ -338,7 +338,6 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
     </div>
     <div class="card stack" style="--i:2">
       <div class="row between"><h2>Lo que viene</h2></div>
-      <div class="quick" id="hQuick"></div>
       <div id="hUpcoming"></div>
     </div>
   </section>
@@ -735,7 +734,7 @@ function upcomingGroupedHTML(){
     evs.forEach(e=>groups[g][1].push([e,ds]));
   }
   const total=groups.reduce((a,g)=>a+g[1].length,0);
-  if(!total) return `<div class="empty">No tienes nada previsto. Usa los atajos de arriba para añadir algo.</div>`;
+  if(!total) return `<div class="empty">No tienes nada previsto. Pulsa un día del calendario o el botón + para añadir algo.</div>`;
   return groups.map(([title,list])=>{
     let inner;
     if(!list.length) inner=`<div class="sub" style="padding:2px 0 4px">Nada previsto.</div>`;
@@ -772,7 +771,6 @@ function renderHoy(){
   $("#hSelLbl").textContent=relLabel(calSelHoy);
   const evs=eventsOn(calSelHoy);
   $("#hSelList").innerHTML=evs.length?evs.map(e=>evRow(e,calSelHoy,false)).join(""):`<div class="sub" style="padding:4px 0">Nada para este día.</div>`;
-  $("#hQuick").innerHTML=quickDates().map(([l,d])=>`<button type="button" class="qc" data-qd="${ymd(d)}">+ ${esc(l)}</button>`).join("");
   $("#hUpcoming").innerHTML=upcomingGroupedHTML();
 }
 let agMode="week", calAg=new Date(); calAg.setDate(1);
