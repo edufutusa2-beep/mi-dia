@@ -490,6 +490,9 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
   </form>
 </div>
 
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="cloud.js"></script>
 <script>
 (function(){
 "use strict";
@@ -516,12 +519,13 @@ const LKEY="midia-v1";
 function localLoad(){try{const r=JSON.parse(localStorage.getItem(LKEY)||"{}");Object.entries(r).forEach(([k,v])=>state.items.set(k,v))}catch(e){}}
 function localSave(){try{localStorage.setItem(LKEY,JSON.stringify(Object.fromEntries(state.items)))}catch(e){}}
 async function put(id,obj){
+  obj={...obj,_u:Date.now()};
   state.items.set(id,obj); scheduleRender();
-  if(mode==="db"){try{await colRef.doc(id).set(obj)}catch(e){handleWriteErr(e)}} else localSave();
+  if(mode==="db"){try{await colRef.doc(id).set(obj)}catch(e){handleWriteErr(e)}} else {localSave();if(window.MidiaCloud)window.MidiaCloud.queue(id,obj)}
 }
 async function del(id){
   state.items.delete(id); scheduleRender();
-  if(mode==="db"){try{await colRef.doc(id).delete()}catch(e){handleWriteErr(e)}} else localSave();
+  if(mode==="db"){try{await colRef.doc(id).delete()}catch(e){handleWriteErr(e)}} else {localSave();if(window.MidiaCloud)window.MidiaCloud.queue(id,null)}
 }
 function handleWriteErr(e){
   const c=e&&e.code;
@@ -563,7 +567,7 @@ async function purgeExamples(){
   if(!ids.length) return;
   cleaning=true;
   for(const id of ids){state.items.delete(id);if(mode==="db"){try{await colRef.doc(id).delete()}catch(e){}}}
-  if(mode!=="db") localSave();
+  if(mode!=="db"){localSave();if(window.MidiaCloud)ids.forEach(id=>window.MidiaCloud.queue(id,null))}
   cleaning=false; scheduleRender();
 }
 const all=kind=>[...state.items.entries()].filter(([,v])=>v&&v.kind===kind).map(([id,v])=>({id,...v}));
@@ -1074,8 +1078,14 @@ function toast(title,body,sticky){
   if(!sticky) setTimeout(rm,5000);
 }
 
+window.MidiaApp={
+  items:()=>state.items,
+  applyRemote(changes){changes.forEach(c=>{if(c.data)state.items.set(c.id,c.data);else state.items.delete(c.id)});localSave();scheduleRender()},
+  openSheet:id=>openSheet(id), closeSheets:()=>closeSheets(), toast:(a,b)=>toast(a,b)
+};
 updNotifBtn();
 initStore();
+if(mode!=="db"&&!window.claude&&window.MidiaCloud) window.MidiaCloud.start(window.MidiaApp);
 setTimeout(checkReminders,1500);
 let lastDay=ymd(new Date());
 setInterval(()=>{const d=ymd(new Date());if(d!==lastDay){lastDay=d;if(selDay===ymd(addDays(new Date(),-1)))selDay=d;scheduleRender()}else scheduleRender()},60000);
