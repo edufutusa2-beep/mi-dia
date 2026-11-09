@@ -254,10 +254,13 @@ body.chrome-hidden .topbar{transform:translateY(-100%)}
 nav.tabs{position:fixed;left:50%;bottom:calc(12px + var(--safe-b));transform:translateX(-50%);z-index:9;width:min(calc(100% - 32px),400px);
   background:var(--glass);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
   border:1px solid var(--line);border-radius:18px;box-shadow:0 8px 24px rgba(14,26,43,.10);display:flex;padding:5px;
-  transition:transform .4s var(--ease),opacity .3s}
-nav.tabs button{flex:1;border:0;background:none;padding:7px 4px;color:var(--muted);font-weight:700;font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;border-radius:16px;position:relative;transition:color .25s}
+  transition:transform .4s var(--ease),opacity .3s;touch-action:none;-webkit-user-select:none;user-select:none}
+nav.tabs button{z-index:1;flex:1;border:0;background:none;padding:7px 4px;color:var(--muted);font-weight:700;font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;border-radius:16px;position:relative;transition:color .25s}
 nav.tabs button svg{width:22px;height:22px}
-nav.tabs button[aria-selected="true"]{color:var(--accent);background:var(--accent-soft)}
+nav.tabs button[aria-selected="true"],nav.tabs button.hover{color:var(--accent)}
+nav.tabs.dragging button[aria-selected="true"]:not(.hover){color:var(--muted)}
+.tab-ind{position:absolute;top:5px;bottom:5px;left:0;border-radius:14px;background:var(--accent-soft);z-index:0;pointer-events:none;transition:transform .35s var(--ease),width .35s var(--ease)}
+nav.tabs.dragging .tab-ind{transition:none;box-shadow:0 4px 14px rgba(14,26,43,.12)}
 body.chrome-hidden nav.tabs{transform:translate(-50%,calc(100% + 24px + var(--safe-b)));opacity:0}
 .fab{position:fixed;right:max(18px,calc(50% - 262px));bottom:calc(88px + var(--safe-b));z-index:9;width:56px;height:56px;border-radius:16px;border:0;color:var(--on-accent);font-size:28px;font-weight:300;line-height:1;display:grid;place-items:center;background:var(--accent);box-shadow:0 8px 20px rgba(14,26,43,.22);transition:transform .4s var(--ease),opacity .3s}
 .fab:active{transform:scale(.92)}
@@ -417,6 +420,7 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
 <button class="fab" id="fab" type="button" aria-label="Añadir">+</button>
 
 <nav class="tabs" aria-label="Secciones" role="tablist">
+  <span class="tab-ind" aria-hidden="true"></span>
   <button type="button" role="tab" data-tab="hoy" aria-selected="true">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Hoy</button>
   <button type="button" role="tab" data-tab="agenda" aria-selected="false">
@@ -836,6 +840,7 @@ function go(t){
   const dir=TABS.indexOf(t)>TABS.indexOf(tab)?"from-r":"from-l";
   tab=t;
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
+  placeInd();
   document.querySelectorAll(".view").forEach(v=>{v.classList.remove("on","from-r","from-l");if(v.id==="v-"+t){void v.offsetWidth;v.classList.add("on",dir)}});
   $("#viewTitle").textContent=TITLES[t];
   try{history.replaceState(null,"","#"+t)}catch(e){}
@@ -849,7 +854,47 @@ function resetToToday(t){
   try{window.scrollTo({top:0,behavior:reduceMotion()?"auto":"smooth"})}catch(e){window.scrollTo(0,0)}
   document.body.classList.remove("chrome-hidden");
 }
-document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>{haptic();if(b.dataset.tab===tab)resetToToday(tab);else go(b.dataset.tab)}));
+/* barra inferior: toque o arrastre con el dedo */
+const nav=document.querySelector("nav.tabs"), ind=nav.querySelector(".tab-ind"), navBtns=[...nav.querySelectorAll("button")];
+function placeInd(x){
+  const b=navBtns[TABS.indexOf(tab)]; if(!b) return;
+  ind.style.width=b.offsetWidth+"px";
+  ind.style.transform=`translateX(${x!=null?x:b.offsetLeft}px)`;
+}
+let drag=null, suppressClick=false;
+nav.addEventListener("pointerdown",e=>{
+  if(e.pointerType==="mouse"&&e.button!==0) return;
+  drag={x0:e.clientX,moved:false,idx:TABS.indexOf(tab),id:e.pointerId};
+});
+nav.addEventListener("pointermove",e=>{
+  if(!drag||e.pointerId!==drag.id) return;
+  if(!drag.moved&&Math.abs(e.clientX-drag.x0)<8) return;
+  if(!drag.moved){drag.moved=true;nav.classList.add("dragging");try{nav.setPointerCapture(e.pointerId)}catch(_){}}
+  const r=nav.getBoundingClientRect(), w=navBtns[0].offsetWidth, minX=navBtns[0].offsetLeft, maxX=navBtns[navBtns.length-1].offsetLeft;
+  const x=Math.max(minX,Math.min(maxX,e.clientX-r.left-w/2));
+  ind.style.width=w+"px"; ind.style.transform=`translateX(${x}px)`;
+  let best=0,bd=1e9; navBtns.forEach((b,i)=>{const d=Math.abs(b.offsetLeft-x);if(d<bd){bd=d;best=i}});
+  if(best!==drag.idx){drag.idx=best;haptic()}
+  navBtns.forEach((b,i)=>b.classList.toggle("hover",i===best));
+});
+function endDrag(e){
+  if(!drag||(e&&e.pointerId!==drag.id)) return;
+  const d=drag; drag=null;
+  if(!d.moved) return;
+  suppressClick=true; setTimeout(()=>suppressClick=false,350);
+  nav.classList.remove("dragging"); navBtns.forEach(b=>b.classList.remove("hover"));
+  const t=TABS[d.idx];
+  if(t===tab) placeInd(); else go(t);
+}
+nav.addEventListener("pointerup",endDrag);
+nav.addEventListener("pointercancel",e=>{if(drag&&drag.moved){drag.idx=TABS.indexOf(tab)}endDrag(e)});
+navBtns.forEach(b=>b.addEventListener("click",e=>{
+  if(suppressClick){e.preventDefault();return}
+  haptic(); if(b.dataset.tab===tab) resetToToday(tab); else go(b.dataset.tab);
+}));
+window.addEventListener("resize",()=>placeInd());
+requestAnimationFrame(()=>placeInd());
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>placeInd());
 document.addEventListener("click",e=>{
   const cs=e.target.closest("[data-cal-shift]"); if(cs){const n=+cs.dataset.calShift;if(cs.dataset.ctx==="hoy"){calHoy=new Date(calHoy.getFullYear(),calHoy.getMonth()+n,1);renderHoy()}else{calAg=new Date(calAg.getFullYear(),calAg.getMonth()+n,1);renderAgenda()}return}
   const cd=e.target.closest("[data-cal-day]"); if(cd){const ds=cd.dataset.calDay,d=parseYmd(ds);haptic();
