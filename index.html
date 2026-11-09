@@ -159,6 +159,11 @@ body.chrome-hidden .topbar{transform:translateY(-100%)}
 .cd.has[aria-pressed="true"],.day.has[aria-pressed="true"]{background:var(--accent);box-shadow:none;color:var(--on-accent);text-decoration:none}
 .day{padding:8px 0 10px}
 .day .cnt{top:-6px;right:-2px;box-shadow:0 0 0 2px var(--surface)}
+.upg{display:flex;flex-direction:column;gap:2px;padding-top:6px}
+.upg + .upg{border-top:1px solid var(--line);margin-top:6px;padding-top:12px}
+.upg-h{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.upg-h h3{font-family:var(--display);font-size:15px;font-weight:800}
+.upg-n{font-size:11.5px;font-weight:700;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:0 8px;line-height:18px}
 .selday{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
 .selday h3{font-size:16px;font-family:var(--display);font-weight:800}
 .quick{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}
@@ -333,11 +338,6 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
     </div>
     <div class="card stack" style="--i:2">
       <div class="row between"><h2>Lo que viene</h2></div>
-      <div class="seg2" id="hRange">
-        <button type="button" data-r="7" aria-pressed="true">Días</button>
-        <button type="button" data-r="28" aria-pressed="false">Semanas</button>
-        <button type="button" data-r="92" aria-pressed="false">Meses</button>
-      </div>
       <div class="quick" id="hQuick"></div>
       <div id="hUpcoming"></div>
     </div>
@@ -720,9 +720,29 @@ function quickDates(){
   const t=new Date(), wd=(t.getDay()+6)%7;
   const nextMon=addDays(t,7-wd), sat=addDays(t,(5-wd+7)%7||7);
   const inMonths=n=>{const d=new Date(t.getFullYear(),t.getMonth()+n,1);d.setDate(Math.min(t.getDate(),new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));return d};
-  if(rangeDays===7) return [["Mañana",addDays(t,1)],["Pasado mañana",addDays(t,2)],["Este sábado",sat],["El lunes",nextMon]];
-  if(rangeDays===28) return [["Próxima semana",nextMon],["En 2 semanas",addDays(t,14)],["En 3 semanas",addDays(t,21)],["En 4 semanas",addDays(t,28)]];
-  return [["En 1 mes",inMonths(1)],["En 2 meses",inMonths(2)],["En 3 meses",inMonths(3)]];
+  return [["Mañana",addDays(t,1)],["Este sábado",sat],["Próxima semana",nextMon],["En 2 semanas",addDays(t,14)],["En 1 mes",inMonths(1)],["En 3 meses",inMonths(3)]];
+}
+function upcomingGroupedHTML(){
+  const now=new Date(), wd=(now.getDay()+6)%7;
+  const endWeek=6-wd;            // días hasta el domingo
+  const endNext=endWeek+28;      // 4 semanas más
+  const endMonths=365;
+  const seen=new Set(), groups=[["Esta semana",[]],["Próximas semanas",[]],["Próximos meses",[]]];
+  for(let i=1;i<=endMonths;i++){
+    const ds=ymd(addDays(now,i));
+    const evs=eventsOn(ds).filter(e=>{if(isDone(e,ds))return false;if(e.repeat&&e.repeat!=="none"){if(seen.has(e.id))return false;seen.add(e.id)}return true});
+    const g=i<=endWeek?0:i<=endNext?1:2;
+    evs.forEach(e=>groups[g][1].push([e,ds]));
+  }
+  const total=groups.reduce((a,g)=>a+g[1].length,0);
+  if(!total) return `<div class="empty">No tienes nada previsto. Usa los atajos de arriba para añadir algo.</div>`;
+  return groups.map(([title,list])=>{
+    let inner;
+    if(!list.length) inner=`<div class="sub" style="padding:2px 0 4px">Nada previsto.</div>`;
+    else if(title==="Esta semana"){let last="";inner=list.map(([e,ds])=>{const h=ds!==last?`<div class="dayhead">${esc(relLabel(ds))}</div>`:"";last=ds;return h+evRow(e,ds,false)}).join("")}
+    else inner=list.slice(0,40).map(([e,ds])=>evRow(e,ds,true)).join("")+(list.length>40?`<div class="sub">Y ${list.length-40} más…</div>`:"");
+    return `<section class="upg"><div class="upg-h"><h3>${title}</h3><span class="upg-n">${list.length}</span></div>${inner}</section>`;
+  }).join("");
 }
 function upcomingHTML(days){
   const t=new Date(), seen=new Set(); let out="", count=0;
@@ -753,7 +773,7 @@ function renderHoy(){
   const evs=eventsOn(calSelHoy);
   $("#hSelList").innerHTML=evs.length?evs.map(e=>evRow(e,calSelHoy,false)).join(""):`<div class="sub" style="padding:4px 0">Nada para este día.</div>`;
   $("#hQuick").innerHTML=quickDates().map(([l,d])=>`<button type="button" class="qc" data-qd="${ymd(d)}">+ ${esc(l)}</button>`).join("");
-  $("#hUpcoming").innerHTML=upcomingHTML(rangeDays);
+  $("#hUpcoming").innerHTML=upcomingGroupedHTML();
 }
 let agMode="week", calAg=new Date(); calAg.setDate(1);
 function renderAgenda(){
@@ -839,7 +859,6 @@ document.addEventListener("click",e=>{
     else{selDay=ds;weekStart=startOfWeek(d);if(d.getMonth()!==calAg.getMonth())calAg=new Date(d.getFullYear(),d.getMonth(),1);renderAgenda()}return}
   const qd=e.target.closest("[data-qd]"); if(qd){haptic();openEv(null,qd.dataset.qd);return}
   const ao=e.target.closest("[data-add-on]"); if(ao){openEv(null,ao.dataset.addOn);return}
-  const rg=e.target.closest("#hRange button"); if(rg){rangeDays=+rg.dataset.r;document.querySelectorAll("#hRange button").forEach(b=>b.setAttribute("aria-pressed",b===rg));renderHoy();return}
   const am=e.target.closest("#agMode button"); if(am){agMode=am.dataset.m;if(agMode==="month"){const d=parseYmd(selDay);calAg=new Date(d.getFullYear(),d.getMonth(),1)}renderAgenda();return}
   if(e.target.closest("#hAddDay")){openEv(null,calSelHoy);return}
   const g=e.target.closest("[data-go]"); if(g){go(g.dataset.go);return}
