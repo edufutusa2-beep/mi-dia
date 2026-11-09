@@ -946,8 +946,7 @@ main.addEventListener("touchend",e=>{
   if(tab==="agenda"&&el.closest&&el.closest("#weekCard")){shiftWeek(dx<0?1:-1);haptic();return}
   if(el.closest&&el.closest("#monthCard")){calAg=new Date(calAg.getFullYear(),calAg.getMonth()+(dx<0?1:-1),1);renderAgenda();haptic();return}
   if(el.closest&&el.closest("#hCal")){calHoy=new Date(calHoy.getFullYear(),calHoy.getMonth()+(dx<0?1:-1),1);renderHoy();haptic();return}
-  const i=TABS.indexOf(tab)+(dx<0?1:-1);
-  if(i>=0&&i<TABS.length){haptic();go(TABS[i])}
+  // deslizar en el resto de la pantalla ya no cambia de pestaña (solo en la barra inferior)
 },{passive:true});
 
 function toggleDone(id,ds){
