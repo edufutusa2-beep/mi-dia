@@ -1079,7 +1079,8 @@ initStore();
 setTimeout(checkReminders,1500);
 let lastDay=ymd(new Date());
 setInterval(()=>{const d=ymd(new Date());if(d!==lastDay){lastDay=d;if(selDay===ymd(addDays(new Date(),-1)))selDay=d;scheduleRender()}else scheduleRender()},60000);
-if("serviceWorker" in navigator&&location.protocol==="https:"){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{})})}
+if("serviceWorker" in navigator&&location.protocol==="https:"){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(reg=>{document.addEventListener("visibilitychange",()=>{if(!document.hidden)reg.update().catch(()=>{})})}).catch(()=>{});
+  let reloaded=false;navigator.serviceWorker.addEventListener("controllerchange",()=>{if(reloaded||document.querySelector(".scrim.on"))return;reloaded=true;location.reload()})})}
 })();
 </script>
 </body>
