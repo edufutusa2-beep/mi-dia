@@ -149,6 +149,16 @@ body.chrome-hidden .topbar{transform:translateY(-100%)}
 .cd .dd{display:flex;gap:2px;height:5px}
 .cd .dd i{width:5px;height:5px;border-radius:50%;display:block}
 .cd[aria-pressed="true"] .dd i{background:var(--on-accent) !important}
+.cd,.day{position:relative}
+.cd.has,.day.has{background:color-mix(in srgb,var(--hc) 20%,transparent);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--hc) 60%,transparent);color:var(--ink)}
+.cd.has.alldone,.day.has.alldone{background:color-mix(in srgb,var(--muted) 12%,transparent);box-shadow:none;color:var(--muted);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--muted) 60%,transparent)}
+.cd.has.today,.day.has.today{box-shadow:inset 0 0 0 2px var(--accent)}
+.cd.has.past:not(.alldone){opacity:.8}
+.cnt{position:absolute;top:3px;right:4px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:var(--hc,var(--accent));color:#fff;font-size:9.5px;font-weight:800;line-height:15px;text-align:center;font-family:var(--body)}
+.cd[aria-pressed="true"] .cnt,.day[aria-pressed="true"] .cnt{background:var(--on-accent);color:var(--accent)}
+.cd.has[aria-pressed="true"],.day.has[aria-pressed="true"]{background:var(--accent);box-shadow:none;color:var(--on-accent);text-decoration:none}
+.day{padding:8px 0 10px}
+.day .cnt{top:-6px;right:-2px;box-shadow:0 0 0 2px var(--surface)}
 .selday{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
 .selday h3{font-size:16px;font-family:var(--display);font-weight:800}
 .quick{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}
@@ -694,8 +704,8 @@ function monthGridHTML(m,sel,ctx){
   let h=["L","M","X","J","V","S","D"].map(d=>`<div class="wd">${d}</div>`).join("");
   for(let i=0;i<weeks*7;i++){
     const d=addDays(start,i), ds=ymd(d), evs=eventsOn(ds);
-    const dots=evs.slice(0,3).map(e=>`<i style="background:${isDone(e,ds)?"var(--line)":DOTC(e)}"></i>`).join("");
-    h+=`<button type="button" class="cd ${d.getMonth()!==mo?"other":""} ${ds===today?"today":""} ${ds<today?"past":""}" data-cal-day="${ds}" data-ctx="${ctx}" aria-pressed="${ds===sel}" aria-label="${d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})}${evs.length?`, ${evs.length} evento${evs.length>1?"s":""}`:""}">${d.getDate()}<span class="dd">${dots}</span></button>`;
+    const pendEv=evs.filter(e=>!isDone(e,ds)), hc=evs.length?(pendEv.length?DOTC(pendEv[0]):"var(--muted)"):"";
+    h+=`<button type="button" class="cd ${evs.length?"has":""} ${evs.length&&!pendEv.length?"alldone":""} ${d.getMonth()!==mo?"other":""} ${ds===today?"today":""} ${ds<today?"past":""}" ${hc?`style="--hc:${hc}"`:""} data-cal-day="${ds}" data-ctx="${ctx}" aria-pressed="${ds===sel}" aria-label="${d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})}${evs.length?`, ${evs.length} evento${evs.length>1?"s":""}`:""}">${d.getDate()}${evs.length>1?`<span class="cnt">${evs.length}</span>`:""}</button>`;
   }
   return `<div class="cal">${h}</div>`;
 }
@@ -759,9 +769,9 @@ function renderAgenda(){
   $("#wLbl").textContent=a.getMonth()===b.getMonth()
     ? cap(a.toLocaleDateString("es-ES",{month:"long",year:"numeric"}))
     : cap(a.toLocaleDateString("es-ES",{month:"short"}).replace(".",""))+" – "+b.toLocaleDateString("es-ES",{month:"short",year:"numeric"}).replace(".","");
-  $("#week").innerHTML=days.map(d=>{const ds=ymd(d);const n=Math.min(eventsOn(ds).length,3);
-    return `<button type="button" class="day ${ds===today?"today":""}" aria-pressed="${ds===selDay}" data-day="${ds}" aria-label="${d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric"})}">
-      <span class="dw">${d.toLocaleDateString("es-ES",{weekday:"short"}).replace(".","").slice(0,2)}</span><span class="dn num">${d.getDate()}</span><span class="dots">${"<i></i>".repeat(n)}</span></button>`}).join("");
+  $("#week").innerHTML=days.map(d=>{const ds=ymd(d);const evs=eventsOn(ds);const pendEv=evs.filter(e=>!isDone(e,ds));const hc=evs.length?(pendEv.length?DOTC(pendEv[0]):"var(--muted)"):"";
+    return `<button type="button" class="day ${evs.length?"has":""} ${evs.length&&!pendEv.length?"alldone":""} ${ds===today?"today":""}" ${hc?`style="--hc:${hc}"`:""} aria-pressed="${ds===selDay}" data-day="${ds}" aria-label="${d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric"})}${evs.length?`, ${evs.length} evento${evs.length>1?"s":""}`:""}">
+      <span class="dw">${d.toLocaleDateString("es-ES",{weekday:"short"}).replace(".","").slice(0,2)}</span><span class="dn num">${d.getDate()}</span>${evs.length>1?`<span class="cnt">${evs.length}</span>`:""}</button>`}).join("");
   const evs=eventsOn(selDay);
   const pend=evs.filter(e=>!isDone(e,selDay)).length;
   $("#dayCount").textContent=evs.length?`${pend} pendiente${pend===1?"":"s"} de ${evs.length}`:"";
