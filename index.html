@@ -167,6 +167,8 @@ body.chrome-hidden .topbar{transform:translateY(-100%)}
 .upg-h{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .upg-h h3{font-family:var(--display);font-size:15px;font-weight:800}
 .upg-n{font-size:11.5px;font-weight:700;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:0 8px;line-height:18px}
+.wl-t{display:block;line-height:1.2}
+.wl-s{display:block;font-family:var(--body);font-size:12.5px;font-weight:600;color:var(--muted);margin-top:2px}
 .selday{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
 .selday h3{font-size:16px;font-family:var(--display);font-weight:800}
 .quick{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}
@@ -384,8 +386,8 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
 
   <!-- AGENDA -->
   <section class="view" id="v-agenda" aria-label="Agenda">
-    <div class="seg2" id="agMode" style="--i:0"><button type="button" data-m="week" aria-pressed="true">Semana</button><button type="button" data-m="month" aria-pressed="false">Mes</button></div>
-    <div class="card stack hide" style="--i:1" id="monthCard">
+    <div class="seg2 hide" id="agMode" style="--i:0"><button type="button" data-m="week" aria-pressed="true">Semana</button><button type="button" data-m="month" aria-pressed="false">Mes</button></div>
+    <div class="card stack" style="--i:1" id="monthCard">
       <div class="month-nav">
         <button class="icon-btn" type="button" data-cal-shift="-1" data-ctx="agenda" aria-label="Mes anterior">‹</button>
         <div class="lbl" id="aCalLbl"></div>
@@ -393,7 +395,7 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
       </div>
       <div id="aCal"></div>
     </div>
-    <div class="card stack" style="--i:1" id="weekCard">
+    <div class="card stack hide" style="--i:1" id="weekCard">
       <div class="month-nav">
         <button class="icon-btn" type="button" id="wPrev" aria-label="Semana anterior">‹</button>
         <div class="lbl" id="wLbl"></div>
@@ -735,6 +737,19 @@ function deltaTxt(el,cur,prev,goodUp){
   el.textContent=(p>0?"▲ ":"▼ ")+Math.abs(p)+" % vs mes pasado";
   el.classList.add((p>0)===goodUp?"up":"dn");
 }
+/* tira de una semana (pestaña Hoy) */
+function weekLabel(ws){
+  const a=ws,b=addDays(ws,6), t=startOfWeek(new Date());
+  const rel=ymd(ws)===ymd(t)?"Esta semana":ymd(ws)===ymd(addDays(t,7))?"Próxima semana":ymd(ws)===ymd(addDays(t,-7))?"Semana pasada":"";
+  const rng=a.getMonth()===b.getMonth()?`${a.getDate()}–${b.getDate()} ${b.toLocaleDateString("es-ES",{month:"long"})}`:`${a.getDate()} ${a.toLocaleDateString("es-ES",{month:"short"}).replace(".","")} – ${b.getDate()} ${b.toLocaleDateString("es-ES",{month:"short"}).replace(".","")}`;
+  return rel?`<span class="wl-t">${rel}</span><span class="wl-s">${esc(rng)}</span>`:`<span class="wl-t">${esc(cap(rng))}</span>`;
+}
+function weekStripHTML(ws,sel,ctx){
+  const today=ymd(new Date());
+  return `<div class="week">`+[...Array(7)].map((_,i)=>{const d=addDays(ws,i),ds=ymd(d),evs=eventsOn(ds),pendEv=evs.filter(e=>!isDone(e,ds)),hc=evs.length?(pendEv.length?DOTC(pendEv[0]):"var(--muted)"):"";
+    return `<button type="button" class="day ${evs.length?"has":""} ${evs.length&&!pendEv.length?"alldone":""} ${ds===today?"today":""}" ${hc?`style="--hc:${hc}"`:""} data-cal-day="${ds}" data-ctx="${ctx}" aria-pressed="${ds===sel}" aria-label="${d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})}${evs.length?`, ${evs.length} evento${evs.length>1?"s":""}`:""}">
+      <span class="dw">${d.toLocaleDateString("es-ES",{weekday:"short"}).replace(".","").slice(0,2)}</span><span class="dn num">${d.getDate()}</span>${evs.length>1?`<span class="cnt">${evs.length}</span>`:""}</button>`}).join("")+`</div>`;
+}
 /* calendario mensual reutilizable */
 const DOTC=ev=>EVC[ev.cat]||EVC.Personal;
 function monthGridHTML(m,sel,ctx){
@@ -754,8 +769,7 @@ function relLabel(ds){
   if(ds===t) return "Hoy"; if(ds===tm) return "Mañana";
   return cap(parseYmd(ds).toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}));
 }
-let calHoy=new Date(), calSelHoy=ymd(new Date()), rangeDays=7;
-calHoy.setDate(1);
+let calHoy=startOfWeek(new Date()), calSelHoy=ymd(new Date()), rangeDays=7;
 function quickDates(){
   const t=new Date(), wd=(t.getDay()+6)%7;
   const nextMon=addDays(t,7-wd), sat=addDays(t,(5-wd+7)%7||7);
@@ -807,14 +821,14 @@ function renderHoy(){
   if(s.i>0){const mg=s.b/s.i*100;km.textContent=(Math.round(mg*10)/10).toLocaleString("es-ES")+" %";km.className="v num "+(mg>=0?"in":"out");
     requestAnimationFrame(()=>{$("#kMarBar").style.width=Math.max(0,Math.min(100,mg))+"%"});}
   else{km.textContent="—";km.className="v num";$("#kMarBar").style.width="0"}
-  $("#hCalLbl").textContent=cap(calHoy.toLocaleDateString("es-ES",{month:"long",year:"numeric"}));
-  $("#hCal").innerHTML=monthGridHTML(calHoy,calSelHoy,"hoy");
+  $("#hCalLbl").innerHTML=weekLabel(calHoy);
+  $("#hCal").innerHTML=weekStripHTML(calHoy,calSelHoy,"hoy");
   $("#hSelLbl").textContent=relLabel(calSelHoy);
   const evs=eventsOn(calSelHoy);
   $("#hSelList").innerHTML=evs.length?evs.map(e=>evRow(e,calSelHoy,false)).join(""):`<div class="sub" style="padding:4px 0">Nada para este día.</div>`;
   $("#hUpcoming").innerHTML=upcomingGroupedHTML();
 }
-let agMode="week", calAg=new Date(); calAg.setDate(1);
+let agMode="month", calAg=new Date(); calAg.setDate(1);
 function renderAgenda(){
   document.querySelectorAll("#agMode button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.m===agMode));
   $("#monthCard").classList.toggle("hide",agMode!=="month"); $("#weekCard").classList.toggle("hide",agMode!=="week");
@@ -885,7 +899,7 @@ function go(t){
 }
 function resetToToday(t){
   const now=new Date(), today=ymd(now);
-  if(t==="hoy"){calHoy=new Date(now.getFullYear(),now.getMonth(),1);calSelHoy=today;renderHoy()}
+  if(t==="hoy"){calHoy=startOfWeek(now);calSelHoy=today;renderHoy()}
   else if(t==="agenda"){weekStart=startOfWeek(now);selDay=today;calAg=new Date(now.getFullYear(),now.getMonth(),1);renderAgenda()}
   else if(t==="finanzas"){month=new Date(now.getFullYear(),now.getMonth(),1);renderFin()}
   try{window.scrollTo({top:0,behavior:reduceMotion()?"auto":"smooth"})}catch(e){window.scrollTo(0,0)}
@@ -933,9 +947,9 @@ window.addEventListener("resize",()=>placeInd());
 requestAnimationFrame(()=>placeInd());
 if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>placeInd());
 document.addEventListener("click",e=>{
-  const cs=e.target.closest("[data-cal-shift]"); if(cs){const n=+cs.dataset.calShift;if(cs.dataset.ctx==="hoy"){calHoy=new Date(calHoy.getFullYear(),calHoy.getMonth()+n,1);renderHoy()}else{calAg=new Date(calAg.getFullYear(),calAg.getMonth()+n,1);renderAgenda()}return}
+  const cs=e.target.closest("[data-cal-shift]"); if(cs){const n=+cs.dataset.calShift;if(cs.dataset.ctx==="hoy"){calHoy=addDays(calHoy,7*n);calSelHoy=ymd(calHoy);if(ymd(startOfWeek(new Date()))===ymd(calHoy))calSelHoy=ymd(new Date());renderHoy()}else{calAg=new Date(calAg.getFullYear(),calAg.getMonth()+n,1);renderAgenda()}return}
   const cd=e.target.closest("[data-cal-day]"); if(cd){const ds=cd.dataset.calDay,d=parseYmd(ds);haptic();
-    if(cd.dataset.ctx==="hoy"){calSelHoy=ds;if(d.getMonth()!==calHoy.getMonth())calHoy=new Date(d.getFullYear(),d.getMonth(),1);renderHoy()}
+    if(cd.dataset.ctx==="hoy"){calSelHoy=ds;calHoy=startOfWeek(d);renderHoy()}
     else{selDay=ds;weekStart=startOfWeek(d);if(d.getMonth()!==calAg.getMonth())calAg=new Date(d.getFullYear(),d.getMonth(),1);renderAgenda()}return}
   const qd=e.target.closest("[data-qd]"); if(qd){haptic();openEv(null,qd.dataset.qd);return}
   const ao=e.target.closest("[data-add-on]"); if(ao){openEv(null,ao.dataset.addOn);return}
@@ -982,7 +996,7 @@ main.addEventListener("touchend",e=>{
   if(el.closest&&el.closest("input,select,textarea")) return;
   if(tab==="agenda"&&el.closest&&el.closest("#weekCard")){shiftWeek(dx<0?1:-1);haptic();return}
   if(el.closest&&el.closest("#monthCard")){calAg=new Date(calAg.getFullYear(),calAg.getMonth()+(dx<0?1:-1),1);renderAgenda();haptic();return}
-  if(el.closest&&el.closest("#hCal")){calHoy=new Date(calHoy.getFullYear(),calHoy.getMonth()+(dx<0?1:-1),1);renderHoy();haptic();return}
+  if(el.closest&&el.closest("#hCal")){calHoy=addDays(calHoy,dx<0?7:-7);calSelHoy=ymd(calHoy);if(ymd(startOfWeek(new Date()))===ymd(calHoy))calSelHoy=ymd(new Date());renderHoy();haptic();return}
   // deslizar en el resto de la pantalla ya no cambia de pestaña (solo en la barra inferior)
 },{passive:true});
 
@@ -1070,7 +1084,7 @@ $("#evForm").addEventListener("submit",e=>{
   put(editEv||("ev_"+uid()),obj);
   closeSheets(); haptic();
   if(remindDay>=0&&notifState()!=="granted"&&!audioUnlocked) toast("Activa los avisos","Pulsa «Activar avisos» arriba para recibirlos.");
-  selDay=date; weekStart=startOfWeek(parseYmd(date)); if(tab==="hoy"){calSelHoy=date;const dd=parseYmd(date);calHoy=new Date(dd.getFullYear(),dd.getMonth(),1)} scheduleRender();
+  selDay=date; weekStart=startOfWeek(parseYmd(date)); if(tab==="hoy"){calSelHoy=date;calHoy=startOfWeek(parseYmd(date))} scheduleRender();
 });
 
 let editTx=null, txType="out";
