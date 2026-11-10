@@ -282,7 +282,7 @@ window.MidiaCloud={
     sb.auth.getSession().then(({data})=>{
       const s=data&&data.session;
       onSession(s,true);
-      if(!s&&!sessionStorage.getItem("midia-asked")){try{sessionStorage.setItem("midia-asked","1")}catch(e){}setTimeout(()=>{if(!session&&!document.querySelector(".scrim.on")){render();app.openSheet("#acctScrim")}},700)}
+      if(!s&&!sessionStorage.getItem("midia-asked")){try{sessionStorage.setItem("midia-asked","1")}catch(e){}setTimeout(function ask(){if(document.getElementById("splash")){setTimeout(ask,500);return}if(!session&&!document.querySelector(".scrim.on")){render();app.openSheet("#acctScrim")}},700)}
     }).catch(()=>updBtn());
     document.addEventListener("visibilitychange",()=>{if(!document.hidden)syncNow(false)});
     window.addEventListener("online",()=>syncNow(false));
