@@ -9,8 +9,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Mi Día">
-<meta name="theme-color" content="#F4F6F9" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0A111C" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F3F6F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B1412" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -20,13 +20,13 @@
 <style>
 /* Plan: app de bolsillo con cabecera y barra inferior de cristal que se esconden al bajar; fondo neutro, un solo acento azul; hojas que suben desde abajo. Tema = sistema. */
 :root{
-  --bg:#F4F6F9; --surface:#FFFFFF; --glass:rgba(255,255,255,.78); --glass-line:rgba(15,23,42,.06);
-  --ink:#0E1A2B; --muted:#5E6B7E; --line:#E3E8EF;
-  --accent:#1D4ED8; --accent-2:#1D4ED8; --accent-3:#1D4ED8; --accent-soft:#EAF0FC; --on-accent:#FFFFFF;
-  --navy:#0E1A2B;
-  --good:#12805C; --good-soft:#E6F4EE; --bad:#C2362F; --bad-soft:#FBECEB; --warn:#A8620A; --warn-soft:#FBF1E2;
-  --teal:#0F7C86; --teal-soft:#E4F3F4;
-  --shadow:0 1px 2px rgba(14,26,43,.05),0 4px 14px rgba(14,26,43,.04);
+  --bg:#F3F6F5; --surface:#FFFFFF; --glass:rgba(255,255,255,.8); --glass-line:rgba(16,32,28,.06);
+  --ink:#10201C; --muted:#5B6B66; --line:#E0E8E5;
+  --accent:#0F766E; --accent-2:#0F766E; --accent-3:#0F766E; --accent-soft:#E2F1EE; --on-accent:#FFFFFF;
+  --navy:#10201C;
+  --good:#15803D; --good-soft:#E5F4EA; --bad:#C2362F; --bad-soft:#FBECEB; --warn:#A8620A; --warn-soft:#FBF1E2;
+  --teal:#4F6BD8; --teal-soft:#E9EDFB;
+  --shadow:0 1px 2px rgba(16,32,28,.05),0 4px 14px rgba(16,32,28,.04);
   --display:"Manrope","Segoe UI",system-ui,sans-serif;
   --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
   --r:14px; --ease:cubic-bezier(.2,.8,.2,1);
@@ -35,12 +35,12 @@
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#0A111C; --surface:#111A27; --glass:rgba(17,26,39,.8); --glass-line:rgba(255,255,255,.06);
-    --ink:#E7ECF3; --muted:#8B98AB; --line:#1E2938;
-    --accent:#5B8DEF; --accent-2:#5B8DEF; --accent-3:#5B8DEF; --accent-soft:#16243C; --on-accent:#0A111C;
-    --navy:#16243C;
-    --good:#3FB58A; --good-soft:#10271F; --bad:#E5675F; --bad-soft:#2C1618; --warn:#D9973D; --warn-soft:#2A2013;
-    --teal:#3BB2BC; --teal-soft:#0F2629;
+    --bg:#0B1412; --surface:#121D1A; --glass:rgba(18,29,26,.82); --glass-line:rgba(255,255,255,.06);
+    --ink:#E3EFEC; --muted:#8DA39D; --line:#1D2B27;
+    --accent:#2DD4BF; --accent-2:#2DD4BF; --accent-3:#2DD4BF; --accent-soft:#10302C; --on-accent:#0B1412;
+    --navy:#10302C;
+    --good:#4ADE80; --good-soft:#10291B; --bad:#F2706A; --bad-soft:#2E1717; --warn:#E0A045; --warn-soft:#2B2113;
+    --teal:#8EA2F0; --teal-soft:#1A2140;
     --shadow:0 1px 2px rgba(0,0,0,.35);
     color-scheme:dark;
   }
@@ -262,7 +262,7 @@ nav.tabs.dragging button[aria-selected="true"]:not(.hover){color:var(--muted)}
 .tab-ind{position:absolute;top:5px;bottom:5px;left:0;border-radius:14px;background:var(--accent-soft);z-index:0;pointer-events:none;transition:transform .35s var(--ease),width .35s var(--ease)}
 nav.tabs.dragging .tab-ind{transition:none;box-shadow:0 4px 14px rgba(14,26,43,.12)}
 body.chrome-hidden nav.tabs{transform:translate(-50%,calc(100% + 24px + var(--safe-b)));opacity:0}
-.fab{position:fixed;right:max(18px,calc(50% - 262px));bottom:calc(88px + var(--safe-b));z-index:9;width:56px;height:56px;border-radius:16px;border:0;color:var(--on-accent);font-size:28px;font-weight:300;line-height:1;display:grid;place-items:center;background:var(--accent);box-shadow:0 8px 20px rgba(14,26,43,.22);transition:transform .4s var(--ease),opacity .3s}
+.fab{position:fixed;right:max(18px,calc(50% - 262px));bottom:calc(88px + var(--safe-b));z-index:9;width:56px;height:56px;border-radius:16px;border:0;color:var(--on-accent);font-size:28px;font-weight:300;line-height:1;display:grid;place-items:center;background:var(--accent);box-shadow:0 8px 20px rgba(15,118,110,.28);transition:transform .4s var(--ease),opacity .3s}
 .fab:active{transform:scale(.92)}
 body.chrome-hidden .fab{transform:translateY(160%) scale(.6);opacity:0}
 
