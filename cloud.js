@@ -102,7 +102,7 @@ function render(){
       if(!armed){armed=true;this.textContent="Pulsa otra vez para salir";
         body.querySelector("#acctOutNote").textContent=pending()?`Ojo: hay ${pending()} cambio(s) sin subir que se perderán. Conéctate a internet y sincroniza antes de salir.`:"Al salir se borran los datos de este dispositivo. Seguirán guardados en tu cuenta.";
         setTimeout(()=>{armed=false;const b=body.querySelector("#acctOut");if(b)b.textContent="Cerrar sesión"},5000);return}
-      await sb.auth.signOut(); wipeLocal(); app.closeSheets(); app.toast("Sesión cerrada","Los datos siguen guardados en tu cuenta.");
+      await disablePush(); await sb.auth.signOut(); wipeLocal(); app.closeSheets(); app.toast("Sesión cerrada","Los datos siguen guardados en tu cuenta.");
     };
     return;
   }
@@ -216,14 +216,58 @@ function onSession(s,first){
       if(!first) app.toast("Sesión iniciada","Tus datos se están guardando en la nube.");
     }
     if(scrim.classList.contains("on")&&!recovery) app.closeSheets();
-    syncNow(false);
+    syncNow(false); refreshPush();
   }
   updBtn(); if(scrim.classList.contains("on")) render();
+}
+
+/* ---------- notificaciones push (llegan con la app cerrada) ---------- */
+const isStandalone=()=>{try{return window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}catch(e){return false}};
+const isIOS=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const pushCapable=()=>"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
+function b64ToBytes(b){const p="=".repeat((4-b.length%4)%4);const s=atob((b+p).replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(s,c=>c.charCodeAt(0))}
+async function saveSub(sub){
+  const j=sub.toJSON();
+  const tz=(Intl.DateTimeFormat().resolvedOptions().timeZone)||"Europe/Madrid";
+  const {error}=await sb.from("push_subs").upsert({user_id:session.user.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth,tz,ua:navigator.userAgent.slice(0,200)},{onConflict:"endpoint"});
+  if(error) throw error;
+}
+const swReady=(ms)=>Promise.race([navigator.serviceWorker.ready,new Promise((_,rej)=>setTimeout(()=>rej(new Error("La app aún se está preparando. Ciérrala, vuelve a abrirla y pulsa otra vez.")),ms||4000))]);
+async function currentSub(){try{if(!("serviceWorker" in navigator))return null;const reg=await navigator.serviceWorker.getRegistration();return reg&&reg.pushManager?await reg.pushManager.getSubscription():null}catch(e){return null}}
+async function enablePush(){
+  if(!configured) return {ok:false,msg:"La nube aún no está configurada."};
+  if(!pushCapable()) return {ok:false,msg:isIOS()&&!isStandalone()?"Abre Mi Día desde el icono de tu pantalla de inicio y pulsa aquí otra vez.":"Este navegador no admite notificaciones push."};
+  if(isIOS()&&!isStandalone()) return {ok:false,msg:"Abre Mi Día desde el icono de tu pantalla de inicio y pulsa aquí otra vez."};
+  if(!session) return {ok:false,msg:"Inicia sesión primero (botón de la persona, arriba).",login:true};
+  if(!CFG.vapidPublicKey) return {ok:false,msg:"Falta la clave de notificaciones."};
+  let perm=Notification.permission;
+  if(perm==="default") perm=await Notification.requestPermission();
+  if(perm!=="granted") return {ok:false,msg:"Has bloqueado las notificaciones. Actívalas en Ajustes → Notificaciones → Mi Día."};
+  const reg=await swReady(6000);
+  let sub=await reg.pushManager.getSubscription();
+  if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToBytes(CFG.vapidPublicKey)});
+  await saveSub(sub);
+  try{localStorage.setItem("midia-push","1")}catch(e){}
+  return {ok:true,msg:"Te llegarán los recordatorios a las 9:00 y los avisos de presupuesto aunque la app esté cerrada."};
+}
+async function refreshPush(){ // vuelve a guardar la suscripción por si cambió
+  if(!session||!pushCapable()||Notification.permission!=="granted") return;
+  const sub=await currentSub(); if(sub){try{await saveSub(sub)}catch(e){}}
+}
+async function disablePush(){
+  const sub=await currentSub(); if(!sub) return;
+  try{await sb.from("push_subs").delete().eq("endpoint",sub.endpoint)}catch(e){}
+  try{await sub.unsubscribe()}catch(e){}
+  try{localStorage.removeItem("midia-push")}catch(e){}
 }
 
 /* ---------- arranque (lo llama la app) ---------- */
 window.MidiaCloud={
   queue:(id,obj)=>{if(configured)enqueue(id,obj)},
+  pushReady:()=>configured,
+  enablePush:()=>enablePush().catch(e=>({ok:false,msg:"No se pudieron activar: "+(e&&e.message||e)})),
+  pushActive:()=>{try{return localStorage.getItem("midia-push")==="1"&&Notification.permission==="granted"}catch(e){return false}},
+  openAccount:()=>{render();app.openSheet("#acctScrim")},
   start(a){
     app=a; updBtn();
     if(!configured) return;

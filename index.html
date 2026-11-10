@@ -1063,6 +1063,11 @@ $("#txForm").addEventListener("submit",e=>{
   if(!date){$("#txErr").textContent="Elige una fecha.";return}
   saving=true; setTimeout(()=>saving=false,500);
   const prev=editTx?state.items.get(editTx):null;
+  const bud=+settings().budget||0, mk=date.slice(0,7);
+  const spentBefore=bud&&txType!=="in"?all("txn").filter(t=>t.type!=="in"&&String(t.date).startsWith(mk)&&t.id!==editTx).reduce((a,t)=>a+(+t.amount||0),0):0;
+  if(bud&&txType!=="in"&&mk===ymd(new Date()).slice(0,7)){const after=spentBefore+amount, r0=(spentBefore+(prev&&prev.type!=="in"&&String(prev.date).startsWith(mk)?+prev.amount||0:0))/bud, r1=after/bud;
+    if(r1>=1&&r0<1) setTimeout(()=>toast("Has superado tu presupuesto",`Llevas ${eur.format(after)} de ${eur.format(bud)} este mes.`,true),400);
+    else if(r1>=.8&&r0<.8) setTimeout(()=>toast("Te acercas a tu límite",`Llevas ${eur.format(after)} de ${eur.format(bud)} (${Math.round(r1*100)} %).`,true),400);}
   put(editTx||("tx_"+uid()),{kind:"txn",type:txType,amount,cat:$("#txCat").value,date,note:$("#txNote").value.trim(),created:prev?prev.created||Date.now():Date.now()});
   closeSheets(); haptic();
   const d=parseYmd(date); month=new Date(d.getFullYear(),d.getMonth(),1);
@@ -1102,11 +1107,19 @@ function beep(){try{if(!audioCtx)return;const t=audioCtx.currentTime;[880,1175].
 function notifState(){try{return("Notification" in window)?Notification.permission:"unsupported"}catch(e){return"unsupported"}}
 function updNotifBtn(){
   const s=notifState(), b=$("#notifBtn");
-  const on=s==="granted"||audioUnlocked;
+  const push=!!(window.MidiaCloud&&window.MidiaCloud.pushActive&&window.MidiaCloud.pushActive());
+  const on=push||s==="granted"||audioUnlocked;
   b.classList.toggle("on",on);
-  $("#notifTxt").textContent=s==="granted"?"Avisos activos":audioUnlocked?"Avisos en la app":"Activar avisos";
+  $("#notifTxt").textContent=push?"Avisos activos":s==="granted"?"Avisos activos":audioUnlocked?"Avisos en la app":"Activar avisos";
 }
 $("#notifBtn").onclick=async()=>{
+  if(window.MidiaCloud&&window.MidiaCloud.pushReady&&window.MidiaCloud.pushReady()){
+    unlockAudio(); const b=$("#notifBtn"); b.disabled=true; $("#notifTxt").textContent="Activando…";
+    const r=await window.MidiaCloud.enablePush(); b.disabled=false; updNotifBtn();
+    toast(r.ok?"Notificaciones activadas":"No se pudieron activar",r.msg,!r.ok);
+    if(!r.ok&&r.login) window.MidiaCloud.openAccount();
+    return;
+  }
   unlockAudio(); let s=notifState();
   if(s==="default"){try{s=await Notification.requestPermission()}catch(e){s="unsupported"}}
   updNotifBtn(); beep();
