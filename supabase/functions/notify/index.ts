@@ -1,5 +1,5 @@
 // Función "notify" de Mi Día · envía notificaciones push (recordatorios y avisos de presupuesto)
-// Se ejecuta cada 15 minutos desde la base de datos (pg_cron).
+// Se ejecuta cada 15 minutos desde la base de datos (pg_cron). Desactiva "Verify JWT" en sus ajustes.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -82,9 +82,7 @@ function computeDue(items, nowMs, tz, opts) {
 
 
 Deno.serve(async (req) => {
-  if (req.headers.get("x-cron-secret") !== Deno.env.get("CRON_SECRET")) {
-    return new Response("forbidden", { status: 403 });
-  }
+  // Se puede llamar sin clave: solo envía los avisos que ya tocan y nunca dos veces el mismo.
   webpush.setVapidDetails(
     Deno.env.get("VAPID_SUBJECT") ?? "mailto:avisos@example.com",
     Deno.env.get("VAPID_PUBLIC_KEY")!,
