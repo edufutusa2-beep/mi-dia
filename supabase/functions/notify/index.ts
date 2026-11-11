@@ -36,7 +36,7 @@ const longDate = (ds) => { const [y, m, d] = ds.split("-").map(Number); return n
 
 /** items: [{id, ...data}] sin borrados. Devuelve [{key, title, body, tag, extraKeys?}] */
 function computeDue(items, nowMs, tz, opts) {
-  const o = Object.assign({ reminderHour: "09:00" }, opts || {});
+  const o = Object.assign({ slots: ["00:00", "09:00", "18:00"] }, opts || {});
   const now = localParts(nowMs, tz);
   const nowL = asMs(now.date, now.time);
   const out = [];
@@ -47,14 +47,15 @@ function computeDue(items, nowMs, tz, opts) {
       if (!occursOn(ev, ds)) continue;
       if (ev.done && ev.done[ds]) continue;
       if (!ev.time) {
+        // aviso el día elegido (el mismo día, 1 día antes...) a las 00:00, 09:00 y 18:00
         const rd = ev.remindDay;
-        if (!(rd >= 0) || off > rd) continue;
-        const fire = asMs(addDaysStr(ds, -rd), o.reminderHour);
-        const end = asMs(ds, "23:59");
-        if (nowL >= fire && nowL <= end) {
-          const when = off === 0 ? "Hoy" : off === 1 ? "Mañana" : `El ${longDate(ds)}`;
-          out.push({ key: `ev:${ev.id}:${ds}`, title: ev.title || "Recordatorio", body: `${when} · ${ev.cat || "Personal"}`, tag: `ev:${ev.id}:${ds}` });
-        }
+        if (!(rd >= 0) || off !== rd) continue;
+        const day = now.date; // hoy es el día del aviso
+        const passed = o.slots.filter((h) => nowL >= asMs(day, h));
+        if (!passed.length) continue;
+        const slot = passed[passed.length - 1];
+        const when = off === 0 ? "Hoy" : off === 1 ? "Mañana" : `El ${longDate(ds)}`;
+        out.push({ key: `ev:${ev.id}:${ds}:${slot}`, title: ev.title || "Recordatorio", body: `${when} · ${ev.cat || "Personal"}`, tag: `ev:${ev.id}:${ds}:${slot}` });
       } else if (ev.remind >= 0) {
         const at = asMs(ds, ev.time);
         const fire = at - ev.remind * 60000;
@@ -79,6 +80,7 @@ function computeDue(items, nowMs, tz, opts) {
   }
   return out;
 }
+
 
 
 Deno.serve(async (req) => {

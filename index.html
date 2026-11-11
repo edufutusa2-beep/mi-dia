@@ -479,7 +479,7 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
       <label class="f" for="evCat">Categoría<select id="evCat"><option>Personal</option><option>Trabajo</option><option>Salud</option><option>Recados</option><option>Familia</option></select></label>
       <label class="f" for="evRep">Repetir<select id="evRep"><option value="none">No se repite</option><option value="daily">Cada día</option><option value="weekdays">Lunes a viernes</option><option value="weekly">Cada semana</option><option value="monthly">Cada mes</option></select></label>
     </div>
-    <label class="f" for="evRem">Aviso (a las 9:00)<select id="evRem"><option value="-1">Sin aviso</option><option value="0" selected>El mismo día</option><option value="1">1 día antes</option><option value="2">2 días antes</option><option value="7">1 semana antes</option></select></label>
+    <label class="f" for="evRem">Aviso (a las 00:00, 9:00 y 18:00)<select id="evRem"><option value="-1">Sin aviso</option><option value="0" selected>El mismo día</option><option value="1">1 día antes</option><option value="2">2 días antes</option><option value="7">1 semana antes</option></select></label>
     <label class="f" for="evNote">Notas<textarea id="evNote" rows="2" maxlength="500"></textarea></label>
     <div class="err" id="evErr"></div>
     <div class="row between">
@@ -1190,11 +1190,10 @@ function checkReminders(){
       if(isDone(ev,ds)) return;
       if(!ev.time){
         // evento de todo el día: aviso a las 9:00 del día elegido
-        const rd=ev.remindDay; if(!(rd>=0)||rd!==off&&!(off<rd)) return;
-        const fire=parseYmd(ds); fire.setDate(fire.getDate()-rd); fire.setHours(9,0,0,0);
-        const endOfEv=parseYmd(ds); endOfEv.setHours(23,59,0,0);
-        const key=ev.id+"@"+ds+"#d";
-        if(now>=fire&&now<=endOfEv&&!firedMem[key]){
+        const rd=ev.remindDay; if(!(rd>=0)||off!==rd) return;
+        const slots=[0,9,18].filter(h=>now.getHours()>=h); if(!slots.length) return;
+        const key=ev.id+"@"+ds+"#d"+slots[slots.length-1];
+        if(!firedMem[key]){
           markFired(key);
           const when=off===0?"Hoy":off===1?"Mañana":`En ${off} días · ${parseYmd(ds).toLocaleDateString("es-ES",{weekday:"long",day:"numeric"})}`;
           const body=`${when} · ${ev.cat||"Personal"}`;
