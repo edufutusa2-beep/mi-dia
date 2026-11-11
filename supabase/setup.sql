@@ -47,3 +47,14 @@ alter table public.push_log enable row level security;
 -- 4) Extensiones para lanzar la función cada 15 minutos
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
+
+-- 5) Revisar avisos cada 15 minutos (llama a la función "notify")
+select cron.schedule(
+  'mi-dia-avisos',
+  '*/15 * * * *',
+  $$ select net.http_post(
+       url := 'https://fixoqsvxkiqquiyengvl.supabase.co/functions/v1/notify',
+       headers := '{"Content-Type":"application/json"}'::jsonb,
+       body := '{}'::jsonb
+     ); $$
+);

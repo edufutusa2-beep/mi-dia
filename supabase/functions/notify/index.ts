@@ -83,12 +83,15 @@ function computeDue(items, nowMs, tz, opts) {
 
 Deno.serve(async (req) => {
   // Se puede llamar sin clave: solo envía los avisos que ya tocan y nunca dos veces el mismo.
+  if (!Deno.env.get("VAPID_PRIVATE_KEY")) return new Response("faltan las claves VAPID", { status: 500 });
   webpush.setVapidDetails(
     Deno.env.get("VAPID_SUBJECT") ?? "mailto:avisos@example.com",
     Deno.env.get("VAPID_PUBLIC_KEY")!,
     Deno.env.get("VAPID_PRIVATE_KEY")!,
   );
-  const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  let key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!key) { try { const k = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}"); key = Object.values(k)[0] as string ?? ""; } catch (_) { /* sin clave */ } }
+  const sb = createClient(Deno.env.get("SUPABASE_URL")!, key);
   const { data: subs, error } = await sb.from("push_subs").select("user_id,endpoint,p256dh,auth,tz");
   if (error) return new Response("subs: " + error.message, { status: 500 });
 
