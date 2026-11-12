@@ -59,3 +59,14 @@ select cron.schedule(
        timeout_milliseconds := 30000
      ); $$
 );
+
+-- 6) Enlace personal para registrar pagos de Apple Pay desde Atajos
+create table if not exists public.ingest_tokens (
+  user_id uuid primary key default auth.uid() references auth.users(id) on delete cascade,
+  token text not null unique,
+  created_at timestamptz not null default now()
+);
+alter table public.ingest_tokens enable row level security;
+drop policy if exists "Cada usuario gestiona su enlace" on public.ingest_tokens;
+create policy "Cada usuario gestiona su enlace" on public.ingest_tokens
+  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);

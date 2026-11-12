@@ -261,6 +261,21 @@ async function disablePush(){
   try{localStorage.removeItem("midia-push")}catch(e){}
 }
 
+/* ---------- enlace personal para Apple Pay (Atajos) ---------- */
+function randToken(){const b=new Uint8Array(24);crypto.getRandomValues(b);return btoa(String.fromCharCode(...b)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
+async function getIngestUrl(regen){
+  if(!configured) return {ok:false,msg:"La nube no está configurada."};
+  if(!session) return {ok:false,msg:"Inicia sesión primero (botón de la persona, arriba).",login:true};
+  let token=null;
+  if(!regen){const {data,error}=await sb.from("ingest_tokens").select("token").eq("user_id",session.user.id).maybeSingle();if(error)return {ok:false,msg:"No se pudo leer tu enlace. Revisa tu conexión."};token=data&&data.token}
+  if(!token){token=randToken();const {error}=await sb.from("ingest_tokens").upsert({user_id:session.user.id,token},{onConflict:"user_id"});if(error)return {ok:false,msg:"No se pudo crear tu enlace. Revisa tu conexión."}}
+  return {ok:true,url:`${CFG.supabaseUrl}/functions/v1/gasto?t=${token}`,auth:"Bearer "+CFG.supabaseKey};
+}
+async function sendTestExpense(url){
+  try{const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+CFG.supabaseKey,"apikey":CFG.supabaseKey},body:JSON.stringify({importe:"0,01 €",comercio:"Prueba Apple Pay"})});const t=await r.text();setTimeout(()=>syncNow(false),800);return {ok:r.ok,msg:t}}
+  catch(e){return {ok:false,msg:"No hay conexión con el servidor."}}
+}
+
 /* ---------- arranque (lo llama la app) ---------- */
 window.MidiaCloud={
   queue:(id,obj)=>{if(configured)enqueue(id,obj)},
@@ -268,6 +283,9 @@ window.MidiaCloud={
   enablePush:()=>enablePush().catch(e=>({ok:false,msg:"No se pudieron activar: "+(e&&e.message||e)})),
   pushActive:()=>{try{return localStorage.getItem("midia-push")==="1"&&Notification.permission==="granted"}catch(e){return false}},
   openAccount:()=>{render();app.openSheet("#acctScrim")},
+  hasSession:()=>!!session,
+  getIngestUrl:(regen)=>getIngestUrl(regen).catch(()=>({ok:false,msg:"No se pudo obtener tu enlace."})),
+  sendTestExpense:(u)=>sendTestExpense(u),
   start(a){
     app=a; updBtn();
     if(!configured) return;

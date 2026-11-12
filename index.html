@@ -169,6 +169,12 @@ body.chrome-hidden .topbar{transform:translateY(-100%)}
 .upg-n{font-size:11.5px;font-weight:700;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:0 8px;line-height:18px}
 .wl-t{display:block;line-height:1.2}
 .wl-s{display:block;font-family:var(--body);font-size:12.5px;font-weight:600;color:var(--muted);margin-top:2px}
+.ap-badge{font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;background:var(--bg);border:1px solid var(--line);color:var(--muted)}
+.ap-badge.on{background:var(--good-soft);border-color:transparent;color:var(--good)}
+.ap-link{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;user-select:all;-webkit-user-select:all}
+.ap-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.45}
+.ap-steps b{font-weight:700}
+.ap-note{font-size:13px;color:var(--muted);line-height:1.45}
 .selday{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
 .selday h3{font-size:16px;font-family:var(--display);font-weight:800}
 .quick{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}
@@ -446,6 +452,11 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
       <div id="txList"></div>
     </div>
     <div class="card stack" style="--i:6">
+      <div class="row between"><h2>Pagos con Apple Pay</h2><span class="ap-badge" id="apBadge">Manual</span></div>
+      <div class="sub">Registra solos los gastos que pagas con el iPhone o el Apple Watch, con su comercio y categoría.</div>
+      <div class="row"><button class="btn small primary" type="button" id="apOpen">Configurar</button></div>
+    </div>
+    <div class="card stack" style="--i:6">
       <h2>Copia de seguridad</h2>
       <div class="sub">Tus datos se guardan en este iPhone. Haz una copia de vez en cuando. Copia todos tus datos (agenda, movimientos y presupuesto) para guardarlos o pasarlos a otra versión de la app.</div>
       <div class="row" style="flex-wrap:wrap">
@@ -529,6 +540,15 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
     <div class="err" id="bkErr"></div>
     <button type="submit" class="btn primary">Restaurar</button>
   </form>
+</div>
+
+<!-- Hoja: Apple Pay -->
+<div class="scrim" id="apScrim" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="apTitle">
+    <div class="grab-zone"><div class="grab"></div>
+      <div class="row between"><h2 id="apTitle">Pagos con Apple Pay</h2><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></div></div>
+    <div id="apBody" class="stack"></div>
+  </div>
 </div>
 
 <!-- Hoja: presupuesto -->
@@ -682,7 +702,7 @@ function txRow(t){
   return `<button type="button" class="plain tx" data-edit-tx="${esc(t.id)}">
     <span class="ic" style="--ic:${c}">${esc((t.cat||"?").charAt(0))}</span>
     <span class="nm">${esc(t.note||t.cat)}</span><span class="amt num ${t.type==="in"?"in":"out"}">${t.type==="in"?"+":"−"}${eur.format(+t.amount||0)}</span>
-    <span class="sb">${esc(t.cat)} · ${parseYmd(t.date).toLocaleDateString("es-ES",{day:"numeric",month:"short"})}</span></button>`;
+    <span class="sb">${esc(t.cat)} · ${parseYmd(t.date).toLocaleDateString("es-ES",{day:"numeric",month:"short"})}${t.source==="applepay"?" · Apple Pay":""}</span></button>`;
 }
 /* número animado: solo cuando cambia */
 function setMoney(el,val,sign){
@@ -1119,7 +1139,7 @@ $("#txForm").addEventListener("submit",e=>{
   if(bud&&txType!=="in"&&mk===ymd(new Date()).slice(0,7)){const after=spentBefore+amount, r0=(spentBefore+(prev&&prev.type!=="in"&&String(prev.date).startsWith(mk)?+prev.amount||0:0))/bud, r1=after/bud;
     if(r1>=1&&r0<1) setTimeout(()=>toast("Has superado tu presupuesto",`Llevas ${eur.format(after)} de ${eur.format(bud)} este mes.`,true),400);
     else if(r1>=.8&&r0<.8) setTimeout(()=>toast("Te acercas a tu límite",`Llevas ${eur.format(after)} de ${eur.format(bud)} (${Math.round(r1*100)} %).`,true),400);}
-  put(editTx||("tx_"+uid()),{kind:"txn",type:txType,amount,cat:$("#txCat").value,date,note:$("#txNote").value.trim(),created:prev?prev.created||Date.now():Date.now()});
+  put(editTx||("tx_"+uid()),{kind:"txn",type:txType,amount,cat:$("#txCat").value,date,note:$("#txNote").value.trim(),source:prev&&prev.source||undefined,created:prev?prev.created||Date.now():Date.now()});
   closeSheets(); haptic();
   const d=parseYmd(date); month=new Date(d.getFullYear(),d.getMonth(),1);
 });
@@ -1130,6 +1150,52 @@ $("#budForm").addEventListener("submit",e=>{
   const n=parseAmt(raw); if(!(n>0)){$("#budErr").textContent="Escribe un importe mayor que 0.";return}
   put("settings",{...settings(),kind:"settings",budget:n}); closeSheets();
 });
+
+/* ---------- pagos con Apple Pay (Atajos) ---------- */
+let apUrl="", apAuth="";
+function apSteps(){
+  return `<ol class="ap-steps">
+    <li>Abre la app <b>Atajos</b> → pestaña <b>Automatización</b> → <b>+</b> → elige <b>Transacción</b> (en iOS 26 se llama <b>Cartera</b>).</li>
+    <li>Marca tus tarjetas, elige <b>Ejecutar inmediatamente</b> y pulsa <b>Siguiente</b> → <b>Nueva automatización en blanco</b>.</li>
+    <li>Añade la acción <b>Obtener contenido de URL</b>. Pulsa <b>Copiar enlace</b> aquí y pégalo en el campo de la URL.</li>
+    <li>Toca la flecha <b>›</b> de la acción: <b>Método</b> → <b>POST</b>.</li>
+    <li>En <b>Encabezados</b> pulsa <b>Añadir nuevo encabezado</b>: clave <b>Authorization</b> y como valor pega la <b>clave de acceso</b> (botón <b>Copiar clave</b>).</li>
+    <li><b>Cuerpo de la solicitud</b> → <b>JSON</b>.</li>
+    <li>Pulsa <b>Añadir campo</b> → <b>Texto</b>: clave <b>importe</b>, y en el valor elige la variable <b>Entrada del atajo</b> → <b>Importe</b>.</li>
+    <li>Otro campo de <b>Texto</b>: clave <b>comercio</b> → <b>Entrada del atajo</b> → <b>Comercio</b> (o <b>Comerciante</b>).</li>
+    <li>Opcional: añade <b>Mostrar notificación</b> con <b>Contenido de la URL</b> para ver la confirmación en cada pago.</li>
+    <li>Pulsa <b>OK</b>. El próximo pago con Apple Pay aparecerá solo en Finanzas.</li>
+  </ol>`;
+}
+async function renderAp(regen){
+  const body=$("#apBody"), C=window.MidiaCloud;
+  if(!C||!C.getIngestUrl){
+    body.innerHTML=`<p class="ap-note">Esta función solo está disponible en la app instalada en tu iPhone (<b>edufutusa2-beep.github.io/mi-dia</b>) con tu cuenta iniciada, porque los gastos llegan a través de la nube.</p>`+apSteps();
+    return;
+  }
+  body.innerHTML=`<p class="ap-note">Preparando tu enlace…</p>`;
+  const r=await C.getIngestUrl(regen);
+  if(!r.ok){body.innerHTML=`<p class="err">${esc(r.msg)}</p>`+(r.login?`<button class="btn small" type="button" id="apLogin">Iniciar sesión</button>`:"");const l=$("#apLogin");if(l)l.onclick=()=>{closeSheets();setTimeout(()=>C.openAccount(),350)};return}
+  apUrl=r.url; apAuth=r.auth||"";
+  try{localStorage.setItem("midia-ap","1")}catch(e){} updApBadge();
+  body.innerHTML=`<p class="ap-note">Cada vez que pagues con Apple Pay, el iPhone enviará el importe y el comercio a Mi Día y se guardará como gasto con su categoría. Solo funciona con pagos hechos con el iPhone o el Apple Watch, no con la tarjeta física.</p>
+    <div><div class="sub" style="font-weight:700;margin-bottom:6px">Tu enlace personal (no lo compartas)</div><div class="ap-link" id="apLink">${esc(apUrl)}</div></div>
+    <div><div class="sub" style="font-weight:700;margin-bottom:6px">Clave de acceso (para el encabezado Authorization)</div><div class="ap-link" style="max-height:64px;overflow:hidden">${esc(apAuth)}</div></div>
+    <div class="row" style="flex-wrap:wrap"><button class="btn small primary" type="button" id="apCopy">Copiar enlace</button><button class="btn small primary" type="button" id="apCopyKey">Copiar clave</button><button class="btn small" type="button" id="apTest">Enviar gasto de prueba</button><button class="btn small ghost" type="button" id="apRegen">Cambiar enlace</button></div>
+    <div class="ap-note" id="apMsg"></div>
+    <h3 style="font-family:var(--display);font-size:15px;font-weight:800;margin-top:4px">Cómo crear el atajo</h3>`+apSteps();
+  const copyTxt=async(txt)=>{let ok=false;try{await navigator.clipboard.writeText(txt);ok=true}catch(e){}
+    if(!ok){try{const ta=document.createElement("textarea");ta.value=txt;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,txt.length);ok=document.execCommand("copy");ta.remove()}catch(e){}}return ok};
+  $("#apCopy").onclick=async()=>{$("#apMsg").textContent=await copyTxt(apUrl)?"Enlace copiado. Pégalo en la URL de la acción «Obtener contenido de URL».":"No se pudo copiar: mantén pulsado el enlace para copiarlo."};
+  $("#apCopyKey").onclick=async()=>{$("#apMsg").textContent=await copyTxt(apAuth)?"Clave copiada. Pégala como valor del encabezado «Authorization».":"No se pudo copiar la clave."};
+  $("#apTest").onclick=async function(){this.disabled=true;$("#apMsg").textContent="Enviando…";const t=await C.sendTestExpense(apUrl);this.disabled=false;
+    $("#apMsg").textContent=t.ok?t.msg+". Aparecerá en Movimientos en unos segundos; bórralo cuando quieras.":"No funcionó: "+t.msg};
+  let armed=false;
+  $("#apRegen").onclick=function(){if(!armed){armed=true;this.textContent="Pulsa otra vez: el atajo dejará de funcionar hasta pegar el nuevo";setTimeout(()=>{armed=false;const b=$("#apRegen");if(b)b.textContent="Cambiar enlace"},5000);return}renderAp(true)};
+}
+function updApBadge(){let on=false;try{on=localStorage.getItem("midia-ap")==="1"}catch(e){}const b=$("#apBadge");if(b){b.classList.toggle("on",on);b.textContent=on?"Enlace creado":"Manual"}}
+$("#apOpen").onclick=()=>{openSheet("#apScrim");renderAp(false)};
+updApBadge();
 
 /* ---------- copia de seguridad ---------- */
 $("#bkCopy").onclick=async()=>{
