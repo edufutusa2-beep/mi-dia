@@ -333,6 +333,9 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
 .sp-ev b{font-weight:700;overflow-wrap:anywhere}
 .sp-ev small{display:block;color:var(--muted);font-size:12.5px}
 .sp-ev span{font-size:12.5px;color:var(--muted);text-align:right;white-space:nowrap}
+.sp-late{border-color:color-mix(in srgb,var(--bad) 40%,var(--line));box-shadow:inset 3px 0 0 var(--bad),var(--shadow)}
+.sp-late h3{color:var(--bad)}
+.sp-late .sp-ev span{color:var(--bad);font-weight:600}
 .sp-empty{color:var(--muted);font-size:14px;padding:4px 0}
 .sp-foot{margin-top:auto;display:flex;flex-direction:column;gap:12px;padding-top:8px}
 .sp-bar{height:4px;border-radius:4px;background:var(--line);overflow:hidden}
@@ -348,6 +351,7 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
   <div class="sp-in">
     <div style="--i:0"><div class="sp-greet" id="spGreet">Hola</div><div class="sp-date" id="spDate">&nbsp;</div></div>
     <div class="sp-sum" id="spSum" style="--i:1"></div>
+    <div class="sp-card sp-late hide" id="spLate" style="--i:2"></div>
     <div class="sp-card" id="spToday" style="--i:2"></div>
     <div class="sp-card" id="spNext" style="--i:3"></div>
     <div class="sp-foot" style="--i:4">
@@ -1331,10 +1335,12 @@ function renderSplash(){
   const seen=new Set(), nx=[];
   for(let i=1;i<=30&&nx.length<5;i++){const ds=ymd(addDays(now,i));eventsOn(ds).forEach(e=>{if(isDone(e,ds))return;if(e.repeat&&e.repeat!=="none"){if(seen.has(e.id))return;seen.add(e.id)}if(nx.length<5)nx.push([e,ds])})}
   $("#spNext").innerHTML=`<h3>Próximos días</h3>`+(nx.length?nx.map(([e,ds])=>row(e,ds,i18nRel(ds))).join(""):`<div class="sp-empty">No tienes nada previsto en los próximos 30 días.</div>`);
-  const odN=overdueList().length;
+  const od=overdueList(), odN=od.length;
+  const spl=$("#spLate"); spl.classList.toggle("hide",!odN);
+  if(odN) spl.innerHTML=`<h3>Vencidas sin hacer · ${odN}</h3>`+od.slice(0,5).map(e=>row(e,e.date,lateLabel(e.date))).join("")+(odN>5?`<div class="sp-empty">Y ${odN-5} más…</div>`:"");
   let week=0; for(let i=0;i<7;i++){const ds=ymd(addDays(now,i));week+=eventsOn(ds).filter(e=>!isDone(e,ds)).length}
   $("#spSum").textContent=tEv.length?`Hoy tienes ${tEv.length} ${tEv.length===1?"cosa pendiente":"cosas pendientes"} y ${week} en los próximos 7 días.`:week?`Hoy tienes el día libre. En los próximos 7 días tienes ${week} ${week===1?"cosa":"cosas"} en la agenda.`:"Tienes la agenda despejada esta semana.";
-  if(odN) $("#spSum").textContent+=` Además tienes ${odN} ${odN===1?"tarea vencida":"tareas vencidas"} sin hacer.`;
+  if(odN) $("#spSum").textContent+=` Además tienes ${odN} ${odN===1?"tarea vencida":"tareas vencidas"} sin hacer:`;
 }
 function i18nRel(ds){
   const d=Math.round((parseYmd(ds)-parseYmd(ymd(new Date())))/864e5);
