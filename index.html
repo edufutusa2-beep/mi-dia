@@ -175,6 +175,10 @@ body.chrome-hidden .topbar{transform:translateY(-100%)}
 .ap-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.45}
 .ap-steps b{font-weight:700}
 .ap-note{font-size:13px;color:var(--muted);line-height:1.45}
+.late-card{border-color:color-mix(in srgb,var(--bad) 35%,var(--line));box-shadow:inset 3px 0 0 var(--bad),var(--shadow)}
+.late-n{display:inline-block;min-width:22px;padding:0 7px;border-radius:999px;background:var(--bad);color:#fff;font-size:12px;font-weight:800;line-height:20px;text-align:center;vertical-align:3px;font-family:var(--body)}
+.late-n:empty{display:none}
+.late-day{color:var(--bad)}
 .selday{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
 .selday h3{font-size:16px;font-family:var(--display);font-weight:800}
 .quick{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}
@@ -371,6 +375,11 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:70
       <div class="kpi k-out"><div class="kpi-ic">↘</div><div class="k">Gastos del mes</div><div class="v num out" id="kOut">0 €</div><div class="delta" id="dOut"></div></div>
       <div class="kpi k-bal"><div class="kpi-ic">€</div><div class="k">Balance</div><div class="v num" id="kBal">0 €</div><div class="delta" id="dBal"></div></div>
       <div class="kpi k-mar"><div class="kpi-ic">%</div><div class="k">Margen</div><div class="v num" id="kMar">—</div><div class="mbar"><span id="kMarBar"></span></div></div>
+    </div>
+    <div class="card stack late-card hide" id="hLateCard" style="--i:1">
+      <div class="row between"><h2>Vencidas sin hacer <span class="late-n" id="hLateN"></span></h2><button class="btn link" type="button" data-go="agenda">Agenda ›</button></div>
+      <div class="sub" style="margin-top:-6px">Tareas de días anteriores que aún no has marcado como hechas.</div>
+      <div id="hLate"></div>
     </div>
     <div class="card stack" style="--i:1">
       <div class="month-nav">
@@ -829,6 +838,14 @@ function upcomingHTML(days){
   }
   return out||`<div class="empty">Nada previsto en este periodo. Usa los atajos de arriba para añadir algo.</div>`;
 }
+function overdueList(){
+  const tdy=ymd(new Date());
+  return all("event").filter(e=>(e.repeat||"none")==="none"&&e.date&&e.date<tdy&&!isDone(e,e.date)).sort((a,b)=>b.date.localeCompare(a.date));
+}
+function lateLabel(ds){
+  const d=Math.round((parseYmd(ymd(new Date()))-parseYmd(ds))/864e5);
+  return d===1?"Ayer":d<7?`Hace ${d} días`:parseYmd(ds).toLocaleDateString("es-ES",{day:"numeric",month:"short"}).replace(".","");
+}
 function renderHoy(){
   const now=new Date();
   const s=sums(monthTx(now.getFullYear(),now.getMonth()));
@@ -847,6 +864,10 @@ function renderHoy(){
   const evs=eventsOn(calSelHoy);
   $("#hSelList").innerHTML=evs.length?evs.map(e=>evRow(e,calSelHoy,false)).join(""):`<div class="sub" style="padding:4px 0">Nada para este día.</div>`;
   $("#hUpcoming").innerHTML=upcomingGroupedHTML();
+  const od=overdueList();
+  $("#hLateCard").classList.toggle("hide",!od.length);
+  $("#hLateN").textContent=od.length?String(od.length):"";
+  if(od.length){let last="";$("#hLate").innerHTML=od.slice(0,12).map(e=>{const h=e.date!==last?`<div class="dayhead late-day">${esc(lateLabel(e.date))} · ${esc(cap(parseYmd(e.date).toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})))}</div>`:"";last=e.date;return h+evRow(e,e.date,false)}).join("")+(od.length>12?`<div class="sub">Y ${od.length-12} más en la Agenda.</div>`:"")}
 }
 let agMode="month", calAg=new Date(); calAg.setDate(1);
 function renderAgenda(){
@@ -1310,8 +1331,10 @@ function renderSplash(){
   const seen=new Set(), nx=[];
   for(let i=1;i<=30&&nx.length<5;i++){const ds=ymd(addDays(now,i));eventsOn(ds).forEach(e=>{if(isDone(e,ds))return;if(e.repeat&&e.repeat!=="none"){if(seen.has(e.id))return;seen.add(e.id)}if(nx.length<5)nx.push([e,ds])})}
   $("#spNext").innerHTML=`<h3>Próximos días</h3>`+(nx.length?nx.map(([e,ds])=>row(e,ds,i18nRel(ds))).join(""):`<div class="sp-empty">No tienes nada previsto en los próximos 30 días.</div>`);
+  const odN=overdueList().length;
   let week=0; for(let i=0;i<7;i++){const ds=ymd(addDays(now,i));week+=eventsOn(ds).filter(e=>!isDone(e,ds)).length}
   $("#spSum").textContent=tEv.length?`Hoy tienes ${tEv.length} ${tEv.length===1?"cosa pendiente":"cosas pendientes"} y ${week} en los próximos 7 días.`:week?`Hoy tienes el día libre. En los próximos 7 días tienes ${week} ${week===1?"cosa":"cosas"} en la agenda.`:"Tienes la agenda despejada esta semana.";
+  if(odN) $("#spSum").textContent+=` Además tienes ${odN} ${odN===1?"tarea vencida":"tareas vencidas"} sin hacer.`;
 }
 function i18nRel(ds){
   const d=Math.round((parseYmd(ds)-parseYmd(ymd(new Date())))/864e5);
