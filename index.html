@@ -443,7 +443,10 @@ nav.tabs button[aria-selected="true"] svg{transform:translateY(-1px) scale(1.08)
 /* bienvenida */
 .splash{background:var(--bg)}
 .splash::before{content:"";position:absolute;inset:-20%;z-index:-1;background:radial-gradient(40% 30% at 15% 10%,var(--aur-1),transparent 70%),radial-gradient(35% 30% at 90% 85%,var(--aur-3),transparent 70%);filter:blur(10px)}
-.splash{isolation:isolate}
+.splash{isolation:isolate;overflow:hidden !important;overscroll-behavior:none;touch-action:none}
+.splash .sp-in{min-height:0;overflow:hidden;height:100%}
+.splash .sp-foot{flex:none}
+@media (max-height:760px){.sp-date{font-size:27px}.splash .sp-in{gap:12px}.sp-card{padding:10px 14px}.sp-ev{padding:6px 0}.sp-sum{font-size:14px}.splash{padding-top:calc(var(--safe-t) + 18px)}}
 .sp-date{background:linear-gradient(120deg,var(--ink) 20%,var(--accent) 110%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .sp-bar{background:var(--accent-soft)}
 .sp-bar span{background:linear-gradient(90deg,var(--btn-1),var(--btn-2))}
@@ -818,7 +821,7 @@ function renderAll(){
   if(!state.ready) return;
   if(!cleaning) setTimeout(purgeExamples,0);
   $("#todayLbl").textContent=cap(new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}));
-  renderHoy(); renderAgenda(); renderFin(); if(splashOn) renderSplash();
+  renderHoy(); renderAgenda(); renderFin(); if(splashOn){renderSplash();requestAnimationFrame(fitSplash)}
   justDone="";
 }
 function monthTx(y,m){return all("txn").filter(t=>{const d=parseYmd(t.date);return d.getFullYear()===y&&d.getMonth()===m})}
@@ -1475,11 +1478,33 @@ function i18nRel(ds){
 function closeSplash(){
   if(!splashOn) return; splashOn=false; clearTimeout(splashTimer);
   const sp=$("#splash"); sp.classList.add("out"); document.documentElement.style.overflow="";
+  if(!openScrim){document.body.classList.remove("locked");document.body.style.top=""}
   setTimeout(()=>sp.remove(),reduceMotion()?0:480);
+}
+/* que todo quepa en pantalla: si sobra contenido, se quitan filas de las listas más largas */
+function fitSplash(){
+  const inner=$("#splash .sp-in"); if(!inner) return;
+  const over=()=>inner.scrollHeight>inner.clientHeight+1;
+  for(let guard=0;guard<30&&over();guard++){
+    const cards=[...document.querySelectorAll("#splash .sp-card:not(.hide)")].map(c=>[c,c.querySelectorAll(".sp-ev").length]).filter(([,n])=>n>1).sort((a,b)=>b[1]-a[1]);
+    if(!cards.length) break;
+    const card=cards[0][0], rows=card.querySelectorAll(".sp-ev"); rows[rows.length-1].remove();
+    let more=card.querySelector(".sp-more"); if(!more){more=document.createElement("div");more.className="sp-empty sp-more";card.appendChild(more);more.dataset.n="0"}
+    more.dataset.n=String(+more.dataset.n+1); more.textContent=`Y más en la app…`;
+    card.querySelectorAll(".sp-empty:not(.sp-more)").forEach(e=>{if(/^Y \d+ más/.test(e.textContent))e.remove()});
+  }
+  // si aún no cabe: quitar los avisos «Y más…» y después el bloque de próximos días
+  if(over()) document.querySelectorAll("#splash .sp-more").forEach(e=>e.remove());
+  if(over()) $("#spNext").classList.add("hide");
+  if(over()) $("#spToday").querySelectorAll(".sp-ev").forEach((e,i)=>{if(i>0)e.remove()});
 }
 function startSplash(){
   document.documentElement.style.overflow="hidden";
-  renderSplash();
+  document.body.classList.add("locked"); document.body.style.top="0px";
+  const sp=$("#splash");
+  sp.addEventListener("touchmove",e=>{if(e.cancelable)e.preventDefault()},{passive:false});
+  sp.addEventListener("wheel",e=>e.preventDefault(),{passive:false});
+  renderSplash(); requestAnimationFrame(fitSplash);
   requestAnimationFrame(()=>requestAnimationFrame(()=>$("#splash").classList.add("run")));
   splashTimer=setTimeout(closeSplash,5000);
   $("#spGo").onclick=closeSplash;
